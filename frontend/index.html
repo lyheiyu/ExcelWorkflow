@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini Excel Platform</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 10px 16px;
+      background: #111827;
+      color: #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    .panel {
+      background: white;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.15);
+      display: flex;
+      flex-direction: column;
+    }
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+    }
+    .panel-left {
+      width: 20%;
+      min-width: 200px;
+    }
+    .panel-center {
+      flex: 1;
+      min-width: 0;
+    }
+    .panel-right {
+      width: 25%;
+      min-width: 240px;
+    }
+    ul.file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+    ul.file-list li {
+      padding: 6px 8px;
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 4px;
+      margin-bottom: 2px;
+    }
+    ul.file-list li.active {
+      background: #e5f0ff;
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+    ul.file-list li:hover {
+      background: #f3f4f6;
+    }
+    select {
+      padding: 4px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      margin-bottom: 6px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+    thead {
+      background: #f3f4f6;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 4px 6px;
+      white-space: nowrap;
+    }
+    .table-container {
+      flex: 1;
+      overflow: auto;
+    }
+    .columns-list {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 4px;
+    }
+    .column-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      padding: 2px;
+    }
+    button {
+      padding: 6px 10px;
+      font-size: 13px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      font-weight: 500;
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    footer {
+      padding: 4px 10px;
+      background: #f9fafb;
+      font-size: 12px;
+      color: #4b5563;
+      border-top: 1px solid #e5e7eb;
+    }
+    .status {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .download-link {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #16a34a;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Mini Excel Platform</h1>
+    <div class="status">
+      Backend: {{ backendUrl }}
+    </div>
+  </header>
+  <main>
+    <!-- Left: files -->
+    <section class="panel panel-left">
+      <h2>Files</h2>
+      <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+        Put .xlsx files in <code>backend/data</code>
+      </div>
+      <ul class="file-list">
+        <li v-for="f in files"
+            :key="f"
+            :class="{ active: f === selectedFile }"
+            @click="selectFile(f)">
+          {{ f }}
+        </li>
+      </ul>
+    </section>
+
+    <!-- Center: sheet + preview -->
+    <section class="panel panel-center">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <h2 style="margin-bottom:0;">Sheet & Preview</h2>
+        <div v-if="sheets.length" style="margin-left:auto; display:flex; align-items:center; gap:4px;">
+          <span style="font-size:12px; color:#6b7280;">Sheet:</span>
+          <select v-model="selectedSheet" @change="onSheetChange">
+            <option v-for="s in sheets" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+      </div>
+      <div v-if="!selectedFile" style="font-size:13px; color:#6b7280;">
+        Select a file on the left to load sheets & preview.
+      </div>
+      <div v-else-if="!selectedSheet" style="font-size:13px; color:#6b7280;">
+        This file has no sheets or failed to load.
+      </div>
+      <div v-else class="table-container">
+        <table v-if="preview.columns.length">
+          <thead>
+          <tr>
+            <th v-for="col in preview.columns" :key="col">{{ col }}</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr v-for="(row, idx) in preview.rows" :key="idx">
+            <td v-for="col in preview.columns" :key="col">{{ row[col] }}</td>
+          </tr>
+          </tbody>
+        </table>
+        <div v-else style="font-size:13px; color:#6b7280;">
+          No data to preview.
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: columns + merge -->
+    <section class="panel panel-right">
+      <h2>Columns to merge</h2>
+      <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+        Sheet: <strong>{{ selectedSheet || '-' }}</strong>
+      </div>
+      <div class="columns-list">
+        <div v-if="columns.length === 0" style="font-size:13px; color:#6b7280;">
+          No columns yet. Select file + sheet first.
+        </div>
+        <div v-else>
+          <div class="column-item" v-for="col in columns" :key="col">
+            <input type="checkbox"
+                   :value="col"
+                   v-model="selectedColumns">
+            <span>{{ col }}</span>
+          </div>
+        </div>
+      </div>
+      <button style="margin-top:8px;"
+              :disabled="!selectedSheet || selectedColumns.length === 0 || merging"
+              @click="merge">
+        {{ merging ? 'Merging…' : 'Merge selected columns' }}
+      </button>
+      <div v-if="mergeResult" class="download-link">
+        Output:
+        <a :href="backendUrl + '/download/' + mergeResult"
+           target="_blank"
+           style="color:#16a34a; text-decoration:underline;">
+          {{ mergeResult }}
+        </a>
+      </div>
+      <div v-if="errorMessage" style="color:#b91c1c; font-size:12px; margin-top:6px;">
+        {{ errorMessage }}
+      </div>
+        <hr style="margin: 10px 0; border: none; border-top: 1px solid #e5e7eb;">
+
+      <h2 style="margin-top:4px;">Workflow (beta)</h2>
+      <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+        This simple workflow will:
+        <br>1) select the current sheet
+        <br>2) select current checked columns
+        <br>3) run merge as a workflow
+      </div>
+      <button
+        style="margin-top:4px; background:#0f766e;"
+        :disabled="!selectedSheet || selectedColumns.length === 0 || runningWorkflow"
+        @click="runWorkflow"
+      >
+        {{ runningWorkflow ? 'Running Workflow…' : 'Run Workflow' }}
+      </button>
+      <div v-if="workflowResult" class="download-link">
+        Workflow output:
+        <a :href="backendUrl + '/download/' + workflowResult"
+           target="_blank"
+           style="color:#16a34a; text-decoration:underline;">
+          {{ workflowResult }}
+        </a>
+      </div>
+
+    </section>
+  </main>
+  <footer>
+    Mini Excel platform: browse files, preview sheets, select columns, merge & download.
+  </footer>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      backendUrl: "http://127.0.0.1:8000",
+      files: [],
+      selectedFile: null,
+      sheets: [],
+      selectedSheet: null,
+      preview: {
+        columns: [],
+        rows: []
+      },
+      columns: [],
+      selectedColumns: [],
+      merging: false,
+      mergeResult: "",
+      errorMessage: "",
+      runningWorkflow: false,
+      workflowResult: "",
+    };
+  },
+  mounted() {
+    this.loadFiles();
+  },
+  methods: {
+    async loadFiles() {
+      this.errorMessage = "";
+      try {
+        const res = await fetch(this.backendUrl + "/files");
+        const data = await res.json();
+        this.files = data.files || [];
+        if (this.files.length) {
+          this.selectFile(this.files[0]);
+        }
+      } catch (e) {
+        this.errorMessage = "Failed to load files. Is backend running?";
+        console.error(e);
+      }
+    },
+    async selectFile(file) {
+      this.selectedFile = file;
+      this.sheets = [];
+      this.selectedSheet = null;
+      this.preview = { columns: [], rows: [] };
+      this.columns = [];
+      this.selectedColumns = [];
+      this.mergeResult = "";
+      this.errorMessage = "";
+
+      try {
+        const res = await fetch(this.backendUrl + "/sheets?filename=" + encodeURIComponent(file));
+        const data = await res.json();
+        this.sheets = data.sheets || [];
+        if (this.sheets.length) {
+          this.selectedSheet = this.sheets[0];
+          await this.loadPreview();
+          await this.loadColumns();
+        }
+      } catch (e) {
+        this.errorMessage = "Failed to load sheets for " + file;
+        console.error(e);
+      }
+    },
+    async onSheetChange() {
+      this.preview = { columns: [], rows: [] };
+      this.columns = [];
+      this.selectedColumns = [];
+      this.mergeResult = "";
+      this.errorMessage = "";
+      await this.loadPreview();
+      await this.loadColumns();
+    },
+    async loadPreview() {
+      if (!this.selectedFile || !this.selectedSheet) return;
+      try {
+        const url = this.backendUrl + "/preview?filename=" +
+          encodeURIComponent(this.selectedFile) +
+          "&sheet=" + encodeURIComponent(this.selectedSheet);
+        const res = await fetch(url);
+        const data = await res.json();
+        this.preview = data;
+      } catch (e) {
+        this.errorMessage = "Failed to load preview.";
+        console.error(e);
+      }
+    },
+    async loadColumns() {
+      if (!this.selectedSheet) return;
+      try {
+        const url = this.backendUrl + "/columns?sheet=" + encodeURIComponent(this.selectedSheet);
+        const res = await fetch(url);
+        const data = await res.json();
+        this.columns = data.columns || [];
+        this.selectedColumns = [];
+      } catch (e) {
+        this.errorMessage = "Failed to load columns.";
+        console.error(e);
+      }
+    },
+    async merge() {
+      if (!this.selectedSheet || this.selectedColumns.length === 0) return;
+      this.merging = true;
+      this.mergeResult = "";
+      this.errorMessage = "";
+
+      try {
+        const res = await fetch(this.backendUrl + "/merge", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            sheet_name: this.selectedSheet,
+            columns: this.selectedColumns
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Merge failed");
+        }
+        const data = await res.json();
+        this.mergeResult = data.output_filename;
+      } catch (e) {
+        this.errorMessage = e.message;
+        console.error(e);
+      } finally {
+        this.merging = false;
+      }
+    },
+
+    async runWorkflow() {
+      if (!this.selectedSheet || this.selectedColumns.length === 0) return;
+
+      this.runningWorkflow = true;
+      this.workflowResult = "";
+      this.errorMessage = "";
+
+      // 构造一个非常简单的 workflow 节点列表
+      const workflow = {
+        nodes: [
+          {
+            id: "n1",
+            type: "select_sheet",
+            sheet_name: this.selectedSheet
+          },
+          {
+            id: "n2",
+            type: "select_columns",
+            columns: this.selectedColumns
+          },
+          {
+            id: "n3",
+            type: "merge_columns"
+          }
+        ]
+      };
+
+      try {
+        const res = await fetch(this.backendUrl + "/workflow/run", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(workflow)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Workflow failed");
+        }
+        const data = await res.json();
+        this.workflowResult = data.output_filename;
+      } catch (e) {
+        this.errorMessage = e.message;
+        console.error(e);
+      } finally {
+        this.runningWorkflow = false;
+      }
+    }
+
+  }
+}).mount("#app");
+</script>
+</body>
+</html>

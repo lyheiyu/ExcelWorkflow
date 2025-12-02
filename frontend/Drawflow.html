@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini Excel Platform</title>
+
+  <!-- Drawflow (workflow canvas) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
+
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 10px 16px;
+      background: #111827;
+      color: #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+    .status {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: #e5e7eb;
+      padding: 4px 8px;
+      gap: 6px;
+    }
+    .tab-button {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: transparent;
+      color: #374151;
+    }
+    .tab-button.active {
+      background: #ffffff;
+      color: #111827;
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.15);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.15);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+    }
+    .panel-left {
+      width: 20%;
+      min-width: 200px;
+    }
+    .panel-center {
+      flex: 1;
+      min-width: 0;
+    }
+    .panel-right {
+      width: 25%;
+      min-width: 240px;
+    }
+
+    ul.file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+    ul.file-list li {
+      padding: 6px 8px;
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 4px;
+      margin-bottom: 2px;
+    }
+    ul.file-list li.active {
+      background: #e5f0ff;
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+    ul.file-list li:hover {
+      background: #f3f4f6;
+    }
+
+    select {
+      padding: 4px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      margin-bottom: 6px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+    thead {
+      background: #f3f4f6;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 4px 6px;
+      white-space: nowrap;
+    }
+    .table-container {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .columns-list {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 4px;
+    }
+    .column-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      padding: 2px;
+    }
+
+    button {
+      padding: 6px 10px;
+      font-size: 13px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      font-weight: 500;
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    footer {
+      padding: 4px 10px;
+      background: #f9fafb;
+      font-size: 12px;
+      color: #4b5563;
+      border-top: 1px solid #e5e7eb;
+    }
+    .download-link {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #16a34a;
+      word-break: break-all;
+    }
+    .error-text {
+      color: #b91c1c;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    /* Workflow canvas styles */
+    .workflow-main {
+      flex-direction: column;
+    }
+    .workflow-layout {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      min-height: 0;
+    }
+    .node-toolbar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .node-toolbar button {
+      background: #4b5563;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    .node-toolbar button:hover {
+      background: #374151;
+    }
+    .drawflow-wrapper {
+      flex: 1;
+      min-height: 0;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    #drawflow {
+      width: 100%;
+      height: 100%;
+      background: #f9fafb;
+    }
+    .drawflow-node {
+      font-size: 11px;
+    }
+    .node-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .node-type-select_sheet { background:#ecfdf5;}
+    .node-type-select_columns { background:#eff6ff;}
+    .node-type-merge_columns { background:#fef2f2;}
+    .node-type-select_files { background:#fefce8;}
+
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Mini Excel Platform</h1>
+    <div class="status">
+      Backend: {{ backendUrl }}
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button
+      class="tab-button"
+      :class="{active: activeTab === 'preview'}"
+      @click="activeTab = 'preview'"
+    >
+      Preview & Merge
+    </button>
+    <button
+      class="tab-button"
+      :class="{active: activeTab === 'workflow'}"
+      @click="switchToWorkflow"
+    >
+      Workflow Canvas
+    </button>
+  </div>
+
+  <!-- Tab 1: Preview & Merge -->
+  <main v-if="activeTab === 'preview'">
+    <!-- Left: files -->
+    <section class="panel panel-left">
+      <h2>Files</h2>
+      <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+        Put .xlsx files in <code>backend/data</code>
+      </div>
+      <ul class="file-list">
+        <li v-for="f in files"
+            :key="f"
+            :class="{ active: f === selectedFile }"
+            @click="selectFile(f)">
+          {{ f }}
+        </li>
+      </ul>
+    </section>
+
+    <!-- Center: sheet + preview -->
+    <section class="panel panel-center">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <h2 style="margin-bottom:0;">Sheet & Preview</h2>
+        <div v-if="sheets.length" style="margin-left:auto; display:flex; align-items:center; gap:4px;">
+          <span style="font-size:12px; color:#6b7280;">Sheet:</span>
+          <select v-model="selectedSheet" @change="onSheetChange">
+            <option v-for="s in sheets" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+      </div>
+      <div v-if="!selectedFile" style="font-size:13px; color:#6b7280;">
+        Select a file on the left to load sheets & preview.
+      </div>
+      <div v-else-if="!selectedSheet" style="font-size:13px; color:#6b7280;">
+        This file has no sheets or failed to load.
+      </div>
+      <div v-else class="table-container">
+        <table v-if="preview.columns.length">
+          <thead>
+          <tr>
+            <th v-for="col in preview.columns" :key="col">{{ col }}</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr v-for="(row, idx) in preview.rows" :key="idx">
+            <td v-for="col in preview.columns" :key="col">{{ row[col] }}</td>
+          </tr>
+          </tbody>
+        </table>
+        <div v-else style="font-size:13px; color:#6b7280;">
+          No data to preview.
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: columns + merge -->
+    <section class="panel panel-right">
+      <h2>Columns to merge</h2>
+      <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+        Sheet: <strong>{{ selectedSheet || '-' }}</strong>
+      </div>
+      <div class="columns-list">
+        <div v-if="columns.length === 0" style="font-size:13px; color:#6b7280;">
+          No columns yet. Select file + sheet first.
+        </div>
+        <div v-else>
+          <div class="column-item" v-for="col in columns" :key="col">
+            <input type="checkbox"
+                   :value="col"
+                   v-model="selectedColumns">
+            <span>{{ col }}</span>
+          </div>
+        </div>
+      </div>
+      <button style="margin-top:8px;"
+              :disabled="!selectedSheet || selectedColumns.length === 0 || merging"
+              @click="merge">
+        {{ merging ? 'Merging…' : 'Merge selected columns' }}
+      </button>
+      <div v-if="mergeResult" class="download-link">
+        Output:
+        <a :href="backendUrl + '/download/' + mergeResult"
+           target="_blank"
+           style="color:#16a34a; text-decoration:underline;">
+          {{ mergeResult }}
+        </a>
+      </div>
+      <div v-if="errorMessage" class="error-text">
+        {{ errorMessage }}
+      </div>
+    </section>
+  </main>
+
+  <!-- Tab 2: Workflow Canvas -->
+  <main v-else class="workflow-main">
+    <div class="workflow-layout">
+      <section class="panel panel-center">
+        <h2>Workflow Canvas</h2>
+        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">
+          Drag nodes on the canvas, connect them, then run the workflow.
+          <br>
+          Currently, execution uses the selected sheet and columns from the Preview tab.
+        </div>
+        <div class="node-toolbar">
+          <button @click="addNode('select_files')">+ SelectFiles node</button>
+          <button @click="addNode('select_sheet')">+ SelectSheet node</button>
+          <button @click="addNode('select_columns')">+ SelectColumns node</button>
+          <button @click="addNode('merge_columns')">+ MergeColumns node</button>
+        </div>
+        <div class="drawflow-wrapper">
+          <div id="drawflow" ref="drawflow"></div>
+        </div>
+      </section>
+
+      <section class="panel panel-right">
+              <section class="panel panel-right">
+        <h2>Node Inspector & Run</h2>
+
+        <!-- 当前选中的节点信息 -->
+        <div v-if="currentNodeId" style="font-size:12px; margin-bottom:6px;">
+          <div style="margin-bottom:4px;">
+            Selected node: <strong>{{ currentNodeType || '-' }}</strong>
+            <span style="color:#6b7280;">(id: {{ currentNodeId }})</span>
+          </div>
+                    <!-- configure select_files node -->
+          <div v-if="currentNodeType === 'select_files'" style="margin-bottom:8px;">
+            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+              Files for this node:
+            </div>
+            <div class="columns-list" style="height:160px;">
+              <div v-if="files.length === 0" style="font-size:12px; color:#6b7280;">
+                No Excel files loaded. Check backend/data.
+              </div>
+              <div v-else>
+                <div class="column-item" v-for="f in files" :key="f">
+                  <input
+                    type="checkbox"
+                    :value="f"
+                    v-model="nodeFiles"
+                    @change="updateNodeFiles"
+                  >
+                  <span>{{ f }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- existing select_sheet / select_columns / merge_columns blocks follow -->
+
+          <!-- 配置 select_sheet 节点 -->
+          <div v-if="currentNodeType === 'select_sheet'" style="margin-bottom:8px;">
+            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+              Sheet for this node:
+            </div>
+            <select v-model="nodeSheetName" @change="updateNodeSheet">
+              <option value="">- choose sheet -</option>
+              <option v-for="s in sheets" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+
+          <!-- 配置 select_columns 节点 -->
+          <div v-else-if="currentNodeType === 'select_columns'" style="margin-bottom:8px;">
+            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+              Columns for this node<br>
+              <span v-if="!nodeSheetName">Please select a sheet node before this one, or manually set sheet name.</span>
+            </div>
+
+            <div style="font-size:11px; color:#6b7280; margin-bottom:4px;">
+              Sheet context: <strong>{{ nodeSheetName || selectedSheet || '-' }}</strong>
+              <button
+                style="margin-left:4px; padding:2px 6px; font-size:11px; background:#e5e7eb; color:#374151;"
+                @click="usePreviewForNode"
+              >
+                Use Preview tab sheet & columns
+              </button>
+            </div>
+
+            <div class="columns-list" style="height:160px;">
+              <div v-if="nodeColumnsOptions.length === 0" style="font-size:12px; color:#6b7280;">
+                Click "Load columns" to fetch columns for this sheet.
+              </div>
+              <div v-else>
+                <div class="column-item" v-for="col in nodeColumnsOptions" :key="col">
+                  <input
+                    type="checkbox"
+                    :value="col"
+                    v-model="nodeColumns"
+                    @change="updateNodeColumns"
+                  >
+                  <span>{{ col }}</span>
+                </div>
+              </div>
+            </div>
+            <button
+              style="margin-top:6px; padding:4px 8px; font-size:12px; background:#4b5563;"
+              @click="loadNodeColumns"
+            >
+              Load columns for sheet
+            </button>
+          </div>
+
+          <!-- merge_columns 节点 -->
+          <div v-else-if="currentNodeType === 'merge_columns'" style="font-size:12px; color:#6b7280; margin-bottom:8px;">
+            This node will merge using the latest sheet & columns from previous nodes.
+          </div>
+        </div>
+
+        <div v-else style="font-size:12px; color:#6b7280; margin-bottom:12px;">
+          Click a node on the canvas to configure it here.
+        </div>
+
+        <hr style="margin:8px 0; border:none; border-top:1px solid #e5e7eb;">
+
+        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">
+          When running, nodes are executed from left to right (by X position).
+        </div>
+        <button
+          :disabled="runningWorkflow"
+          @click="runWorkflow"
+          style="background:#0f766e;"
+        >
+          {{ runningWorkflow ? 'Running Workflow…' : 'Run Workflow' }}
+        </button>
+
+        <div v-if="workflowResult" class="download-link">
+          Workflow output:
+          <a :href="backendUrl + '/download/' + workflowResult"
+             target="_blank"
+             style="color:#16a34a; text-decoration:underline;">
+            {{ workflowResult }}
+          </a>
+        </div>
+        <div v-if="errorMessage" class="error-text">
+          {{ errorMessage }}
+        </div>
+      </section>
+
+
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    Mini Excel platform · Preview & merge on Tab 1 · Visual workflow on Tab 2.
+  </footer>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      backendUrl: "http://127.0.0.1:8000",
+      activeTab: "preview",
+
+      files: [],
+      selectedFile: null,
+      sheets: [],
+      selectedSheet: null,
+      preview: {
+        columns: [],
+        rows: []
+      },
+      columns: [],
+      selectedColumns: [],
+      merging: false,
+      mergeResult: "",
+      runningWorkflow: false,
+      workflowResult: "",
+      errorMessage: "",
+
+      drawflowInstance: null,
+      nextNodePos: { x: 80, y: 60 },
+
+      currentNodeId: null,
+      currentNodeType: null,
+      nodeSheetName: "",
+      nodeColumns: [],
+      nodeColumnsOptions: [],
+      nodeFiles: [],
+
+    };
+  },
+  mounted() {
+    this.loadFiles();
+  },
+  methods: {
+    async loadFiles() {
+      this.errorMessage = "";
+      try {
+        const res = await fetch(this.backendUrl + "/files");
+        const data = await res.json();
+        this.files = data.files || [];
+        if (this.files.length) {
+          this.selectFile(this.files[0]);
+        }
+      } catch (e) {
+        this.errorMessage = "Failed to load files. Is backend running?";
+        console.error(e);
+      }
+    },
+    async selectFile(file) {
+      this.selectedFile = file;
+      this.sheets = [];
+      this.selectedSheet = null;
+      this.preview = { columns: [], rows: [] };
+      this.columns = [];
+      this.selectedColumns = [];
+      this.mergeResult = "";
+      this.workflowResult = "";
+      this.errorMessage = "";
+
+      try {
+        const res = await fetch(this.backendUrl + "/sheets?filename=" + encodeURIComponent(file));
+        const data = await res.json();
+        this.sheets = data.sheets || [];
+        if (this.sheets.length) {
+          this.selectedSheet = this.sheets[0];
+          await this.loadPreview();
+          await this.loadColumns();
+        }
+      } catch (e) {
+        this.errorMessage = "Failed to load sheets for " + file;
+        console.error(e);
+      }
+    },
+    async onSheetChange() {
+      this.preview = { columns: [], rows: [] };
+      this.columns = [];
+      this.selectedColumns = [];
+      this.mergeResult = "";
+      this.workflowResult = "";
+      this.errorMessage = "";
+      await this.loadPreview();
+      await this.loadColumns();
+    },
+    async loadPreview() {
+      if (!this.selectedFile || !this.selectedSheet) return;
+      try {
+        const url = this.backendUrl + "/preview?filename=" +
+          encodeURIComponent(this.selectedFile) +
+          "&sheet=" + encodeURIComponent(this.selectedSheet);
+        const res = await fetch(url);
+        const data = await res.json();
+        this.preview = data;
+      } catch (e) {
+        this.errorMessage = "Failed to load preview.";
+        console.error(e);
+      }
+    },
+    async loadColumns() {
+      if (!this.selectedSheet) return;
+      try {
+        const url = this.backendUrl + "/columns?sheet=" + encodeURIComponent(this.selectedSheet);
+        const res = await fetch(url);
+        const data = await res.json();
+        this.columns = data.columns || [];
+        this.selectedColumns = [];
+      } catch (e) {
+        this.errorMessage = "Failed to load columns.";
+        console.error(e);
+      }
+    },
+    async merge() {
+      if (!this.selectedSheet || this.selectedColumns.length === 0) return;
+      this.merging = true;
+      this.mergeResult = "";
+      this.errorMessage = "";
+
+      try {
+        const res = await fetch(this.backendUrl + "/merge", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            sheet_name: this.selectedSheet,
+            columns: this.selectedColumns
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Merge failed");
+        }
+        const data = await res.json();
+        this.mergeResult = data.output_filename;
+      } catch (e) {
+        this.errorMessage = e.message;
+        console.error(e);
+      } finally {
+        this.merging = false;
+      }
+    },
+
+    /* --- Workflow tab --- */
+    switchToWorkflow() {
+      this.activeTab = "workflow";
+      this.$nextTick(() => {
+        this.initDrawflow();
+      });
+    },
+    initDrawflow() {
+      if (this.drawflowInstance || !this.$refs.drawflow) return;
+      const editor = new Drawflow(this.$refs.drawflow);
+      editor.reroute = true;
+      editor.start();
+      this.drawflowInstance = editor;
+
+      // 选中节点时，更新右侧 Node Inspector
+      editor.on('nodeSelected', (id) => {
+        this.onNodeSelected(id);
+      });
+
+      // 初始放三个节点（可选）
+      this.addNodeInternal("select_sheet");
+      this.addNodeInternal("select_columns");
+      this.addNodeInternal("merge_columns");
+    },
+    addNode(type) {
+      this.addNodeInternal(type);
+    },
+         addNodeInternal(type) {
+      if (!this.drawflowInstance) return;
+      const df = this.drawflowInstance;
+      const pos = { x: this.nextNodePos.x, y: this.nextNodePos.y };
+      this.nextNodePos.x += 180;
+      this.nextNodePos.y += 40;
+
+      let title = "";
+      let extraClass = "";
+      if (type === "select_files") {
+        title = "Select Files";
+        extraClass = "node-type-select_files";
+      } else if (type === "select_sheet") {
+        title = "Select Sheet";
+        extraClass = "node-type-select_sheet";
+      } else if (type === "select_columns") {
+        title = "Select Columns";
+        extraClass = "node-type-select_columns";
+      } else if (type === "merge_columns") {
+        title = "Merge Columns";
+        extraClass = "node-type-merge_columns";
+      }
+
+      const html = `
+        <div class="node-body ${extraClass}">
+          <div class="node-title">${title}</div>
+          <div style="font-size:10px;color:#4b5563;">
+            ${type}
+          </div>
+        </div>
+      `;
+
+      const data = {};
+      const inputs = 1;
+      const outputs = 1;
+      df.addNode(type, inputs, outputs, pos.x, pos.y, type, data, html);
+    },
+
+
+    onNodeSelected(id) {
+      if (!this.drawflowInstance) return;
+      const node = this.drawflowInstance.getNodeFromId(id);
+      if (!node) return;
+
+      this.currentNodeId = id;
+      this.currentNodeType = node.name;
+      this.nodeSheetName = node.data.sheet_name || "";
+      this.nodeColumns = node.data.columns || [];
+      this.nodeColumnsOptions = [];
+      this.nodeFiles = node.data.files || [];
+    },
+
+    updateNodeFiles() {
+      if (!this.drawflowInstance || !this.currentNodeId) return;
+      const node = this.drawflowInstance.getNodeFromId(this.currentNodeId);
+      if (!node) return;
+      const newData = Object.assign({}, node.data, {
+        files: this.nodeFiles
+      });
+      this.drawflowInstance.updateNodeDataFromId(this.currentNodeId, newData);
+    },
+
+    updateNodeSheet() {
+      if (!this.drawflowInstance || !this.currentNodeId) return;
+      const node = this.drawflowInstance.getNodeFromId(this.currentNodeId);
+      if (!node) return;
+      const newData = Object.assign({}, node.data, { sheet_name: this.nodeSheetName });
+      this.drawflowInstance.updateNodeDataFromId(this.currentNodeId, newData);
+    },
+
+    async loadNodeColumns() {
+      const sheet = this.nodeSheetName || this.selectedSheet;
+      if (!sheet) {
+        this.errorMessage = "Please select a sheet for this node (or in Preview tab).";
+        return;
+      }
+      this.errorMessage = "";
+      try {
+        const url = this.backendUrl + "/columns?sheet=" + encodeURIComponent(sheet);
+        const res = await fetch(url);
+        const data = await res.json();
+        this.nodeColumnsOptions = data.columns || [];
+        this.nodeColumns = (this.nodeColumns || []).filter(c => this.nodeColumnsOptions.includes(c));
+        this.updateNodeColumns();
+      } catch (e) {
+        this.errorMessage = "Failed to load columns for node.";
+        console.error(e);
+      }
+    },
+
+    updateNodeColumns() {
+      if (!this.drawflowInstance || !this.currentNodeId) return;
+      const node = this.drawflowInstance.getNodeFromId(this.currentNodeId);
+      if (!node) return;
+      const sheet = this.nodeSheetName || node.data.sheet_name || this.selectedSheet || "";
+      const newData = Object.assign({}, node.data, {
+        sheet_name: sheet,
+        columns: this.nodeColumns
+      });
+      this.nodeSheetName = sheet;
+      this.drawflowInstance.updateNodeDataFromId(this.currentNodeId, newData);
+    },
+
+    usePreviewForNode() {
+      if (this.currentNodeType !== 'select_columns') return;
+      this.nodeSheetName = this.selectedSheet || "";
+      this.nodeColumns = [...this.selectedColumns];
+      this.updateNodeColumns();
+    },
+        async runWorkflow() {
+      if (!this.drawflowInstance) {
+        this.errorMessage = "Workflow canvas is not initialized.";
+        return;
+      }
+      this.runningWorkflow = true;
+      this.workflowResult = "";
+      this.errorMessage = "";
+
+      try {
+        const exported = this.drawflowInstance.export();
+        const home = exported.drawflow?.Home?.data || {};
+        const nodesArr = Object.values(home);
+
+        if (nodesArr.length === 0) {
+          throw new Error("No nodes in workflow.");
+        }
+
+        // 按 x 坐标排序（左到右执行）
+        nodesArr.sort((a, b) => {
+          if (a.pos_x === b.pos_x) {
+            return a.pos_y - b.pos_y;
+          }
+          return a.pos_x - b.pos_x;
+        });
+
+        const workflowNodes = [];
+                for (const n of nodesArr) {
+          const t = n.name;
+          if (t === "select_files") {
+            const files = n.data.files || [];
+            if (!files.length) {
+              throw new Error(`Node ${n.id}: select_files requires at least one file.`);
+            }
+            workflowNodes.push({
+              id: String(n.id),
+              type: "select_files",
+              files
+            });
+          } else if (t === "select_sheet") {
+            if (!n.data.sheet_name) {
+              throw new Error(`Node ${n.id}: select_sheet requires sheet_name.`);
+            }
+            workflowNodes.push({
+              id: String(n.id),
+              type: "select_sheet",
+              sheet_name: n.data.sheet_name
+            });
+          } else if (t === "select_columns") {
+            const cols = n.data.columns || [];
+            if (!cols.length) {
+              throw new Error(`Node ${n.id}: select_columns requires columns.`);
+            }
+            workflowNodes.push({
+              id: String(n.id),
+              type: "select_columns",
+              columns: cols
+            });
+          } else if (t === "merge_columns") {
+            workflowNodes.push({
+              id: String(n.id),
+              type: "merge_columns"
+            });
+          }
+        }
+
+
+        if (!workflowNodes.some(n => n.type === "merge_columns")) {
+          throw new Error("No merge_columns node in workflow.");
+        }
+
+        const payload = { nodes: workflowNodes };
+
+        const res = await fetch(this.backendUrl + "/workflow/run", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Workflow failed");
+        }
+        const data = await res.json();
+        this.workflowResult = data.output_filename;
+      } catch (e) {
+        this.errorMessage = e.message;
+        console.error(e);
+      } finally {
+        this.runningWorkflow = false;
+      }
+    }
+
+
+  }
+}).mount("#app");
+</script>
+</body>
+</html>
